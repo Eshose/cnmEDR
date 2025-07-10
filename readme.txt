@@ -1,0 +1,1 @@
+pyinstaller --noconfirm --clean --onefile --windowed --icon=favicon.ico --add-data "favicon.ico;." --add-binary "inkscape/bin;inkscape/bin" --add-binary "Tesseract-OCR;Tesseract-OCR" --add-data "D:\Anaconda_envs\envs\EDR\lib\site-packages\rapidocr;rapidocr" main.py --icon=favicon.ico

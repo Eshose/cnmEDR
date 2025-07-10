@@ -1,0 +1,5 @@
+GPU:
+pyinstaller --noconfirm --clean --onefile --windowed --icon=favicon.ico --add-data "favicon.ico;." --add-data "nn.json;." --add-binary "inkscape/bin;inkscape/bin" --add-binary "Tesseract-OCR;Tesseract-OCR" --add-data "D:\Anaconda_envs\envs\EDR\lib\site-packages\rapidocr;rapidocr" main.py --icon=favicon.ico
+
+分目录打包： 加快文件打开速度
+pyinstaller --noconfirm --clean --onedir --windowed --icon=favicon.ico --add-data "favicon.ico;." --add-data "nn.json;." --add-binary "inkscape/bin;inkscape/bin" --add-binary "Tesseract-OCR;Tesseract-OCR" --add-data "D:\Anaconda_envs\envs\EDR\Lib\site-packages\rapidocr;rapidocr" main.py
