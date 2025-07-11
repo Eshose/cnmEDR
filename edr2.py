@@ -927,37 +927,37 @@ if __name__ == '__main__':
     # print(max_y)
     # print(min_y)
 
-    filtered_paths1 = filter_remain_continuous_paths(filtered_paths)
-    # debugTool.show_path(filtered_paths)
-
-    groups = group_paths_by_stroke_width(filtered_paths1)
-
-    engine = RapidOCR(
-        params={
-            "Global.with_torch": True,
-            "EngineConfig.torch.use_cuda": True,  # 使用torch GPU版推理
-            "EngineConfig.torch.gpu_id": 0,  # 指定GPU id
-        }
-    )
-
-    result = []
-    for sw, group in groups.items():
-        # debugTool.show_path(group)
-        print(f'线宽为：{sw}')
-        path_group1 = first_pretreatment(group,5000)
-        # for idx,e in enumerate(path_group1):
-        #     debugTool.show_path_str(e)
-        A,B,C = second_pretreatment(path_group1,10)
-        # debugTool.show_path_str(A)
-        # debugTool.show_path_str(B)
-        # debugTool.show_path_str(C)
-        # print(len(A))
-        # print(len(B))
-        # print(len(C))
-        ocr_list = A + B +C
-        print(len(ocr_list))
-        # for idx,e in enumerate(ocr_list):
-        #     debugTool.show_path(e,save_path=f'output/{idx}.png',show=False)
-        create_images_ocr(ocr_list,engine=engine)
+    # filtered_paths1 = filter_remain_continuous_paths(filtered_paths)
+    # # debugTool.show_path(filtered_paths)
+    #
+    # groups = group_paths_by_stroke_width(filtered_paths1)
+    #
+    # engine = RapidOCR(
+    #     params={
+    #         "Global.with_torch": True,
+    #         "EngineConfig.torch.use_cuda": True,  # 使用torch GPU版推理
+    #         "EngineConfig.torch.gpu_id": 0,  # 指定GPU id
+    #     }
+    # )
+    #
+    # result = []
+    # for sw, group in groups.items():
+    #     # debugTool.show_path(group)
+    #     print(f'线宽为：{sw}')
+    #     path_group1 = first_pretreatment(group,5000)
+    #     # for idx,e in enumerate(path_group1):
+    #     #     debugTool.show_path_str(e)
+    #     A,B,C = second_pretreatment(path_group1,10)
+    #     # debugTool.show_path_str(A)
+    #     # debugTool.show_path_str(B)
+    #     # debugTool.show_path_str(C)
+    #     # print(len(A))
+    #     # print(len(B))
+    #     # print(len(C))
+    #     ocr_list = A + B +C
+    #     print(len(ocr_list))
+    #     # for idx,e in enumerate(ocr_list):
+    #     #     debugTool.show_path(e,save_path=f'output/{idx}.png',show=False)
+    #     create_images_ocr(ocr_list,engine=engine)
 
 
