@@ -6,6 +6,7 @@ import numpy as np
 from PIL import Image
 from rapidocr import RapidOCR
 import matplotlib
+import debugTool
 
 
 matplotlib.use("Agg")
@@ -260,8 +261,9 @@ def second_pretreatment(first_paths,string_thre = 10):
 
     return string_straight_group, string_incline_group, string_single_group
 
+
 # 生成图片，OCR识别
-def create_images_ocr(groups, resize=(5, 5), save_path='OutputImage/', dpi=300, padding=300, flip_vertical=True,stop_flag = None, progress_callback=None, engine = None):
+def create_images_ocr(groups, resize=(5, 5), save_path='OutputImage/', dpi=300, padding=100, flip_vertical=True,stop_flag = None, progress_callback=None, engine = None):
 # def create_images_ocr(groups, resize=(3, 3), save_path='OutputImage/', dpi=300, padding=50, flip_vertical=True,stop_flag = None, progress_callback=None, engine = None):
     # if not os.path.exists(save_path):
     #     os.makedirs(save_path)
@@ -279,7 +281,8 @@ def create_images_ocr(groups, resize=(5, 5), save_path='OutputImage/', dpi=300, 
         # 识别进度百分比更新
         if progress_callback is not None:
             progress_callback(1)
-        fig, ax = plt.subplots(figsize=resize)
+        # fig, ax = plt.subplots(figsize=resize)
+        fig, ax = plt.subplots()
 
         all_x = []
         all_y = []
@@ -297,39 +300,56 @@ def create_images_ocr(groups, resize=(5, 5), save_path='OutputImage/', dpi=300, 
         min_x, max_x = min(all_x), max(all_x)
         min_y, max_y = min(all_y), max(all_y)
 
+        width = max_x - min_x
+        height = max_y - min_y
+        center = ((min_x + max_x) / 2, (min_y + max_y) / 2)
+
+        angle = e.angle
         for path, attr in e.strPath:
             for segment in path:
                 points = [segment.start, segment.end]
                 xs = [p.real for p in points]
                 ys = [p.imag for p in points]
-                ax.plot(xs, ys, color='black', linewidth=2)
+                # ax.plot(xs, ys, color='black', linewidth=2)
+                rotated = [rotate_point(x, y, -angle, center) for x, y in zip(xs, ys)]
+                xs_rot, ys_rot = zip(*rotated)
+                ax.plot(xs_rot, ys_rot, color='black', linewidth=2)
 
         ax.set_aspect('equal')
-        ax.invert_yaxis()  # 加上这一行！！
+
         ax.axis('off')
 
         ax.set_xlim(min_x - padding, max_x + padding)
         ax.set_ylim(min_y - padding, max_y + padding)
-
+        # ax.set_xlim(min_x, max_x)
+        # ax.set_ylim(min_y, max_y)
+        # ax.invert_yaxis()  # 加上这一行！！
         plt.close(fig)
 
         # 绘制完fig, ax以后
         buf = io.BytesIO()
-        fig.savefig(buf, format='png', bbox_inches='tight', dpi=300, pad_inches=0)
+        fig.savefig(buf, format='png', bbox_inches='tight', dpi=50, pad_inches=0)
         buf.seek(0)
 
         # 从内存中读出为PIL.Image
         img = Image.open(buf).convert("RGB")
         img = img.transpose(Image.FLIP_TOP_BOTTOM)
 
+        print(f'图片尺寸：{img.size}')
+        print(f'角度{angle}')
+        # debugTool.show_inter_image(img)
 
-        angle = e.angle
-        w, h = img.size
-        center = (w // 2, h // 2)
-        # 绕中心旋转，使用高质量 BICUBIC
-        rotated_img = img.rotate(angle, resample=Image.BICUBIC, center=center)
-        # debugTool.show_inter_image(rotated_img)
-        result = engine(rotated_img)
+
+        # angle = e.angle
+        # w, h = img.size
+        # center = (w // 2, h // 2)
+        # # 绕中心旋转，使用高质量 BICUBIC
+        # rotated_img = img.rotate(angle, resample=Image.BICUBIC, center=center, expand=True)
+        # # debugTool.show_inter_image(rotated_img)
+
+
+
+        result = engine(img)
         a = float(result.scores[0]) if result.scores and result.scores[0] is not None else 0.0
         if a > 0.8 and result.txts:
             text = [re.sub(r'[^A-Z0-9]', '', line) for line in result.txts]
@@ -342,6 +362,17 @@ def create_images_ocr(groups, resize=(5, 5), save_path='OutputImage/', dpi=300, 
         # if idx > 10:
         #     break
     return string_info
+
+
+def rotate_point(x, y, angle_deg, center):
+    angle_rad = np.radians(angle_deg)
+    cos_a, sin_a = np.cos(angle_rad), np.sin(angle_rad)
+    cx, cy = center
+    x_shifted, y_shifted = x - cx, y - cy
+    x_new = cos_a * x_shifted - sin_a * y_shifted + cx
+    y_new = sin_a * x_shifted + cos_a * y_shifted + cy
+    return x_new, y_new
+
 
 # 删除长度超过阈值的直线和曲线
 def filter_short_paths(filtered_paths, min_length):
@@ -927,37 +958,39 @@ if __name__ == '__main__':
     # print(max_y)
     # print(min_y)
 
-    # filtered_paths1 = filter_remain_continuous_paths(filtered_paths)
-    # # debugTool.show_path(filtered_paths)
-    #
-    # groups = group_paths_by_stroke_width(filtered_paths1)
-    #
-    # engine = RapidOCR(
-    #     params={
-    #         "Global.with_torch": True,
-    #         "EngineConfig.torch.use_cuda": True,  # 使用torch GPU版推理
-    #         "EngineConfig.torch.gpu_id": 0,  # 指定GPU id
-    #     }
-    # )
-    #
-    # result = []
-    # for sw, group in groups.items():
-    #     # debugTool.show_path(group)
-    #     print(f'线宽为：{sw}')
-    #     path_group1 = first_pretreatment(group,5000)
-    #     # for idx,e in enumerate(path_group1):
-    #     #     debugTool.show_path_str(e)
-    #     A,B,C = second_pretreatment(path_group1,10)
-    #     # debugTool.show_path_str(A)
-    #     # debugTool.show_path_str(B)
-    #     # debugTool.show_path_str(C)
-    #     # print(len(A))
-    #     # print(len(B))
-    #     # print(len(C))
-    #     ocr_list = A + B +C
-    #     print(len(ocr_list))
-    #     # for idx,e in enumerate(ocr_list):
-    #     #     debugTool.show_path(e,save_path=f'output/{idx}.png',show=False)
-    #     create_images_ocr(ocr_list,engine=engine)
+    filtered_paths1 = filter_remain_continuous_paths(filtered_paths)
+    # debugTool.show_path(filtered_paths)
+
+    groups = group_paths_by_stroke_width(filtered_paths1)
+
+    engine = RapidOCR(
+        params={
+            "Global.with_torch": True,
+            "EngineConfig.torch.use_cuda": True,  # 使用torch GPU版推理
+            "EngineConfig.torch.gpu_id": 0,  # 指定GPU id
+        }
+    )
+
+    result = []
+    for sw, group in groups.items():
+        # debugTool.show_path(group)
+        print(f'线宽为：{sw}')
+        if sw == 3:
+            continue
+        path_group1 = first_pretreatment(group,5000)
+        # for idx,e in enumerate(path_group1):
+        #     debugTool.show_path_str(e)
+        A,B,C = second_pretreatment(path_group1,10)
+        # debugTool.show_path_str(A)
+        # debugTool.show_path_str(B)
+        # debugTool.show_path_str(C)
+        # print(len(A))
+        # print(len(B))
+        # print(len(C))
+        ocr_list = A + B +C
+        print(len(ocr_list))
+        # for idx,e in enumerate(ocr_list):
+        #     debugTool.show_path(e,save_path=f'output/{idx}.png',show=False)
+        create_images_ocr(ocr_list,engine=engine)
 
 
