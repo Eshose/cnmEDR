@@ -261,9 +261,10 @@ def second_pretreatment(first_paths,string_thre = 10):
 
     return string_straight_group, string_incline_group, string_single_group
 
+matplotlib.use("TkAgg")  # 或 Qt5Agg, MacOSX 等
 
 # 生成图片，OCR识别
-def create_images_ocr(groups, resize=(5, 5), save_path='OutputImage/', dpi=300, padding=100, flip_vertical=True,stop_flag = None, progress_callback=None, engine = None):
+def create_images_ocr(groups, resize=(8, 8), save_path='OutputImage/', dpi=300, padding=50, flip_vertical=True,stop_flag = None, progress_callback=None, engine = None):
 # def create_images_ocr(groups, resize=(3, 3), save_path='OutputImage/', dpi=300, padding=50, flip_vertical=True,stop_flag = None, progress_callback=None, engine = None):
     # if not os.path.exists(save_path):
     #     os.makedirs(save_path)
@@ -274,37 +275,36 @@ def create_images_ocr(groups, resize=(5, 5), save_path='OutputImage/', dpi=300, 
 
     string_info = []
 
+    row = 5
+    col = 5
+    image_count = 0
     for idx, e in enumerate(groups):
         if stop_flag is not None and not stop_flag():
             break
-
         # 识别进度百分比更新
         if progress_callback is not None:
             progress_callback(1)
         # fig, ax = plt.subplots(figsize=resize)
-        fig, ax = plt.subplots()
+
+        if idx % (row * col) == 0:
+            i = row-1
+            j = 0
+            fig, axes = plt.subplots(nrows=row, ncols=col, figsize=resize)
+            image_count += 1
 
         all_x = []
         all_y = []
-
         pathlist = e.strPath
         for path, attr in pathlist:
             for segment in path:
                 points = [segment.start, segment.end]
                 all_x.extend(p.real for p in points)
                 all_y.extend(p.imag for p in points)
-
-        if not all_x or not all_y:
-            continue
-
         min_x, max_x = min(all_x), max(all_x)
         min_y, max_y = min(all_y), max(all_y)
-
-        width = max_x - min_x
-        height = max_y - min_y
         center = ((min_x + max_x) / 2, (min_y + max_y) / 2)
-
         angle = e.angle
+        ax = axes[i, j]
         for path, attr in e.strPath:
             for segment in path:
                 points = [segment.start, segment.end]
@@ -314,53 +314,109 @@ def create_images_ocr(groups, resize=(5, 5), save_path='OutputImage/', dpi=300, 
                 rotated = [rotate_point(x, y, -angle, center) for x, y in zip(xs, ys)]
                 xs_rot, ys_rot = zip(*rotated)
                 ax.plot(xs_rot, ys_rot, color='black', linewidth=2)
-
         ax.set_aspect('equal')
-
         ax.axis('off')
-
         ax.set_xlim(min_x - padding, max_x + padding)
         ax.set_ylim(min_y - padding, max_y + padding)
-        # ax.set_xlim(min_x, max_x)
-        # ax.set_ylim(min_y, max_y)
-        # ax.invert_yaxis()  # 加上这一行！！
-        plt.close(fig)
 
-        # 绘制完fig, ax以后
-        buf = io.BytesIO()
-        fig.savefig(buf, format='png', bbox_inches='tight', dpi=50, pad_inches=0)
-        buf.seek(0)
-
-        # 从内存中读出为PIL.Image
-        img = Image.open(buf).convert("RGB")
-        img = img.transpose(Image.FLIP_TOP_BOTTOM)
-
-        print(f'图片尺寸：{img.size}')
-        print(f'角度{angle}')
-        # debugTool.show_inter_image(img)
+        if idx == len(groups)-1:
 
 
-        # angle = e.angle
-        # w, h = img.size
-        # center = (w // 2, h // 2)
-        # # 绕中心旋转，使用高质量 BICUBIC
-        # rotated_img = img.rotate(angle, resample=Image.BICUBIC, center=center, expand=True)
-        # # debugTool.show_inter_image(rotated_img)
+        if j <col - 1 and i >=0:
+            j += 1  # 在行内推进
+        elif i >=1:
+            i -= 1 # 换行
+            j = 0
+        else:
+            plt.tight_layout(pad=5)
+            plt.show()
+            plt.close(fig)
+            i= row - 1
+            j = 0
+            # 绘制完fig, ax以后
+            buf = io.BytesIO()
+            fig.savefig(buf, format='png', bbox_inches='tight', dpi=100, pad_inches=0)
+            buf.seek(0)
+
+            # 从内存中读出为PIL.Image
+            img = Image.open(buf).convert("RGB")
+            img = img.transpose(Image.FLIP_TOP_BOTTOM)
+            debugTool.show_inter_image(img)
+
+            result = engine(img)
+
+            # 识别结果与图像对应
+            width, height = img.size
+            step_x = 1/col
+            step_y = 1/row
+
+            for i in range(len(result.boxes)):
+                x, y = np.mean(result.boxes[i])
+                x_count = x//step_x
+                y_count = y//step_y
+                txt_count = x_count*5+y_count
+
+
+            center = np.mean(result.boxes[0],axis=0)
+            center1 = np.mean(result.boxes[1],axis=0)
+            x, y = center
+
+            print(f'识别字符的角点坐标：{result.boxes}')
+            print(f'识别字符的中心点坐标：{center}')
+            print(f'识别字符的中心点坐标：{center1}')
+            print(x)
+            print(y)
+            print(width)
+            print(height)
+            print(x/width)
+            print(y/height)
+            # string_info[idx].text = result.txts[idx%(row*col)]
+            # string_info[idx].score = result.scores[idx%(row*col)]
 
 
 
-        result = engine(img)
-        a = float(result.scores[0]) if result.scores and result.scores[0] is not None else 0.0
-        if a > 0.8 and result.txts:
-            text = [re.sub(r'[^A-Z0-9]', '', line) for line in result.txts]
-            startPoint,centerPoint,width,height ,Angle= get_rect_data(e)
-            temp = StringInfo(text=text,path=pathlist, score=result.scores,num=idx+1,startPoint = startPoint,width = width,height = height,angle=Angle,centerpoint=centerPoint)
-            string_info.append(temp)
-            # print(text)
 
-        # print(f'第{idx}次')
-        # if idx > 10:
-        #     break
+
+        # # 循环结束后显示最后一页图
+        # if (idx + 1) % 25 == 0:
+        #     plt.tight_layout()
+        #     plt.show()
+
+        # # 绘制完fig, ax以后
+        # buf = io.BytesIO()
+        # fig.savefig(buf, format='png', bbox_inches='tight', dpi=50, pad_inches=0)
+        # buf.seek(0)
+        #
+        # # 从内存中读出为PIL.Image
+        # img = Image.open(buf).convert("RGB")
+        # img = img.transpose(Image.FLIP_TOP_BOTTOM)
+        #
+        # print(f'图片尺寸：{img.size}')
+        # print(f'角度{angle}')
+        # # debugTool.show_inter_image(img)
+        #
+        #
+        # # angle = e.angle
+        # # w, h = img.size
+        # # center = (w // 2, h // 2)
+        # # # 绕中心旋转，使用高质量 BICUBIC
+        # # rotated_img = img.rotate(angle, resample=Image.BICUBIC, center=center, expand=True)
+        # # # debugTool.show_inter_image(rotated_img)
+        #
+        #
+        #
+        # result = engine(img)
+        # a = float(result.scores[0]) if result.scores and result.scores[0] is not None else 0.0
+        # if a > 0.8 and result.txts:
+        #     text = [re.sub(r'[^A-Z0-9]', '', line) for line in result.txts]
+        #     startPoint,centerPoint,width,height ,Angle= get_rect_data(e)
+        #     temp = StringInfo(text=text,path=pathlist, score=result.scores,num=idx+1,startPoint = startPoint,width = width,height = height,angle=Angle,centerpoint=centerPoint)
+        #     string_info.append(temp)
+        #     # print(text)
+        #
+        # # print(f'第{idx}次')
+        # # if idx > 10:
+        # #     break
     return string_info
 
 
@@ -372,6 +428,17 @@ def rotate_point(x, y, angle_deg, center):
     x_new = cos_a * x_shifted - sin_a * y_shifted + cx
     y_new = sin_a * x_shifted + cos_a * y_shifted + cy
     return x_new, y_new
+
+def txt_to_image(img, result, row, col, img_count, groups):
+    width, height = img.size
+    step_x = 1 / col
+    step_y = 1 / row
+
+    for i in range(len(result.boxes)):
+        x, y = np.mean(result.boxes[i])
+        x_count = (x/width) // step_x
+        y_count = (y/height) // step_y
+        txt_count = x_count * 5 + y_count
 
 
 # 删除长度超过阈值的直线和曲线
@@ -975,8 +1042,8 @@ if __name__ == '__main__':
     for sw, group in groups.items():
         # debugTool.show_path(group)
         print(f'线宽为：{sw}')
-        if sw == 3:
-            continue
+        # if sw == 3:
+        #     continue
         path_group1 = first_pretreatment(group,5000)
         # for idx,e in enumerate(path_group1):
         #     debugTool.show_path_str(e)
